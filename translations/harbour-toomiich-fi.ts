@@ -96,6 +96,22 @@
         <source>Assists: </source>
         <translation>Syöttäjät: </translation>
     </message>
+    <message>
+        <source>Goalie pulled</source>
+        <translation>Maalivahti ulos</translation>
+    </message>
+    <message>
+        <source>Empty net</source>
+        <translation>Tyhjä maali</translation>
+    </message>
+    <message>
+        <source>Goalie in</source>
+        <translation>Maalivahti sisään</translation>
+    </message>
+    <message>
+        <source>Timeout</source>
+        <translation>Aikalisä</translation>
+    </message>
 </context>
 <context>
     <name>LiigaModel</name>

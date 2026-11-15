@@ -393,6 +393,62 @@ TestCase {
         compare(e.event.detail, '5 min taklaus (jäähy)');
     }
 
+    function eventsOfType(m, type) {
+        var r = [];
+        for (var i = 0; i < m.count; i++)
+            if (m.get(i).event.type === type) r.push(m.get(i));
+        return r;
+    }
+
+    function test_game_goalie_pulled_and_returning() {
+        var m = game(Fx.gameGoalie, 200, 2701470);       // Jukurit 1-3 TPS, Jukurit pull the goalie
+        compare(m.count, 4 + 3 + 5);                     // goals + penalties + goalie events
+        var out = [], back = [];
+        for (var i = 0; i < m.count; i++) {
+            var e = m.get(i);
+            if (e.event.text === 'Goalie pulled') out.push(e);
+            if (e.event.detail === 'Goalie in') back.push(e);
+        }
+        compare(out.length, 3);
+        compare(back.length, 2);
+        compare(out[0].time, '56:40');                   // 3400 s
+        compare(out[0].team, 'home');
+        compare(out[0].event.detail, 'Empty net');
+        compare(back[0].time, '56:55');                  // 3415 s, uses beginTime not the log time
+        compare(back[0].event.text, 'Jesper Myrenberg');
+        compare(JSON.parse(back[0].period).num, 3);
+    }
+
+    function test_game_goalie_events_sorted_by_begin_time() {
+        var m = game(Fx.gameGoalie, 200, 2701470);
+        for (var i = 1; i < m.count; i++)
+            verify(m.get(i).gameTime >= m.get(i - 1).gameTime, 'sorted at ' + i);
+    }
+
+    function test_game_timeout_real_sample() {
+        var m = game(Fx.gameTimeout, 200, 2701469);      // Sport 1-0 Pelicans (OT), Pelicans timeout
+        compare(m.count, 1 + 5 + 1);                     // goal + penalties + timeout
+        var t = eventsOfType(m, 'timeout');
+        compare(t.length, 1);
+        compare(t[0].team, 'away');
+        compare(t[0].time, '58:51');                     // 3531 s
+        compare(t[0].event.text, 'Pelicans');
+        compare(t[0].event.detail, 'Timeout');
+        compare(JSON.parse(t[0].period).num, 3);
+    }
+
+    function test_game_timeout_in_overtime_gets_overtime_period() {
+        var data = { game: { homeTeam: { teamName: 'A', timeOut: 3700 }, awayTeam: { timeOut: null },
+                             periods: [{ index: 3, startTime: 2400, endTime: 3600 },
+                                       { index: 4, startTime: 3600, endTime: 3900 }] } };
+        var e = game(data).get(0);
+        compare(JSON.parse(e.period).text, 'Overtime');
+    }
+
+    function test_game_null_timeout_adds_nothing() {
+        compare(eventsOfType(game(Fx.gamePenalty, 200, 2705868), 'timeout').length, 0);
+    }
+
     function test_game_error() {
         compare(game('', 500).status, 4);
     }

@@ -35,9 +35,18 @@ import QtQuick 2.0
 // names, so these are looked up by id in homeTeamPlayers/awayTeamPlayers
 // of the same response.
 //
-// NOT YET IMPLEMENTED: goalKeeperEvents, goalKeeperChanges (empty in every
-// sample so far, since no goalie change happened in them -- need a game
-// that has one) and timeouts (`timeOut` is null in all samples).
+// goalKeeperEvents[] per team (CONFIRMED from a game with a pulled goalie):
+// beginTime/endTime (seconds), period, emptyNet (1 = goalie pulled for an
+// extra attacker, playerId 0; 0 = goalie back in the net, playerId = that
+// goalie). `gameTime` is the logging time and can lag beginTime, so
+// beginTime is what orders the events.
+//
+// `timeOut` per team (CONFIRMED): the game time in seconds at which the
+// team took its timeout, or null.
+//
+// NOT YET IMPLEMENTED: goalKeeperChanges -- empty in every sample, even
+// ones with goalie events; need a game where the starting goalie was
+// replaced.
 ListModel {
     id: root
 
@@ -121,6 +130,41 @@ ListModel {
         };
     }
 
+    function _mapGoalie(ev, team, players) {
+        var base = {
+            gameTime: ev.beginTime,
+            time: root._formatTime(ev.beginTime),
+            team: team,
+            period: root._periodInfo(ev.period)
+        };
+        if (ev.emptyNet) {
+            base.event = { text: qsTr('Goalie pulled'), detail: qsTr('Empty net') };
+        } else {
+            base.event = { text: root._playerName(players[String(ev.playerId)]),
+                           detail: qsTr('Goalie in') };
+        }
+        return base;
+    }
+
+    // The timeout is stored only as a time, so work out the period from the
+    // game's period table (start/end in seconds).
+    function _periodAt(periods, secs) {
+        for (var i = 0; i < periods.length; i++)
+            if (secs >= periods[i].startTime && secs < periods[i].endTime)
+                return periods[i].index;
+        return 3;
+    }
+
+    function _mapTimeout(secs, team, teamName, periods) {
+        return {
+            gameTime: secs,
+            time: root._formatTime(secs),
+            team: team,
+            period: root._periodInfo(root._periodAt(periods, secs)),
+            event: { type: 'timeout', text: teamName || '', detail: qsTr('Timeout') }
+        };
+    }
+
     function refresh() {
         if (!season || !gameId) {
             root.clear();
@@ -165,6 +209,16 @@ ListModel {
                     events.push(root._mapPenalty(homePen[i], 'home', players));
                 for (i = 0; i < awayPen.length; i++)
                     events.push(root._mapPenalty(awayPen[i], 'away', players));
+
+                var sides = [['home', game.homeTeam || {}], ['away', game.awayTeam || {}]];
+                for (var k = 0; k < sides.length; k++) {
+                    var keeper = sides[k][1].goalKeeperEvents || [];
+                    for (i = 0; i < keeper.length; i++)
+                        events.push(root._mapGoalie(keeper[i], sides[k][0], players));
+                    if (sides[k][1].timeOut !== null && sides[k][1].timeOut !== undefined)
+                        events.push(root._mapTimeout(sides[k][1].timeOut, sides[k][0],
+                                                     sides[k][1].teamName, game.periods || []));
+                }
 
                 events.sort(function (a, b) { return a.gameTime - b.gameTime; });
 
