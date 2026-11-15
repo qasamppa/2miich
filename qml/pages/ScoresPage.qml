@@ -28,7 +28,6 @@ import '../helpers'
 Page {
     id: page
     property int detailsIndex: -1
-    property alias date: games.model.date
 
     onStatusChanged: {
         if (status === PageStatus.Active) {
