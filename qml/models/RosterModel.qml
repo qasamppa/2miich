@@ -17,60 +17,96 @@
  */
 
 import QtQuick 2.0
-import harbour.toomiich.HtmlListModel 1.0
-import harbour.toomiich.TzDateParser 1.0
 
-HtmlListModel {
-    property string source
-    query: '//div[@class = "rosters"]/div/div/div[@class = "line"]/div/a[@class = "player"]'
+// Roster model, backed by https://liiga.fi/api/v2/games/{season}/{id} ,
+// which returns 'homeTeamPlayers'/'awayTeamPlayers' arrays alongside the
+// game data itself (see GameModel.qml, which will share the same fetch).
+//
+// Confirmed field names (from a not-yet-started game, so `line` was null
+// for every player -- TODO: verify what `line` looks like once lineups
+// are published, e.g. shortly before puck drop):
+//   teamName, firstName, lastName, jersey, role, roleCode, line,
+//   pictureUrl, captain, alternateCaptain, rookie
+ListModel {
+    id: root
 
-    onSourceChanged: {
-        var xhr = new XMLHttpRequest;
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE)
-                markup = '<html><body>' + xhr.responseText;
+    property int season
+    property int gameId
+    property int status: 0
+
+    // roleCode ordering, so goalies/defensemen/forwards group sensibly
+    // even before `line` is populated. Best guess: C = goalkeeper
+    // (maalivahti), P = defenseman (puolustaja), H = forward (hyökkääjä).
+    readonly property var _roleOrder: ({ 'C': 0, 'P': 1, 'H': 2 })
+
+    function _fullName(p) {
+        return (p.firstName || '') + ' ' + (p.lastName || '');
+    }
+
+    function _lineLabel(p) {
+        if (p.line !== null && p.line !== undefined && p.line !== '')
+            return String(p.line);
+        // Lineups aren't always published this far ahead of the game;
+        // fall back to grouping by role instead.
+        return p.role || '';
+    }
+
+    function _mapPlayer(p) {
+        return {
+            team: p.teamName || '',
+            name: root._fullName(p),
+            number: p.jersey || 0,
+            image: p.pictureUrl || '',
+            position: p.role || '',
+            positionIndex: root._roleOrder[p.roleCode] !== undefined ?
+                               root._roleOrder[p.roleCode] : 99,
+            line: root._lineLabel(p),
+            captain: !!p.captain,
+            alternateCaptain: !!p.alternateCaptain,
+            'section-json': JSON.stringify({
+                team: p.teamName || '',
+                line: root._lineLabel(p)
+            })
+        };
+    }
+
+    function refresh() {
+        if (!season || !gameId) {
+            root.clear();
+            return;
         }
-        xhr.open('GET', source);
+
+        status = 1;
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status !== 200) {
+                    status = 4;
+                    return;
+                }
+                var data;
+                try {
+                    data = JSON.parse(xhr.responseText);
+                } catch (e) {
+                    status = 4;
+                    return;
+                }
+
+                root.clear();
+                var home = data.homeTeamPlayers || [];
+                var away = data.awayTeamPlayers || [];
+                var i;
+                for (i = 0; i < home.length; i++)
+                    root.append(root._mapPlayer(home[i]));
+                for (i = 0; i < away.length; i++)
+                    root.append(root._mapPlayer(away[i]));
+                status = 3;
+            }
+        };
+        xhr.open('GET', 'https://liiga.fi/api/v2/games/' + season + '/' + gameId);
         xhr.send();
     }
 
-    HtmlRole {
-        name: 'team'
-        query: '../../../../span[@class = "team-name"]'
-    }
-
-    HtmlRole {
-        name: 'name'
-        query: 'div[@class = "name"]'
-    }
-
-    HtmlRole {
-        name: 'number'
-        query: 'div[@class = "jersey"]'
-    }
-
-    HtmlRole {
-        name: 'image'
-        query: 'div[@class = "img"]/img/@src'
-    }
-
-    HtmlRole {
-        name: 'position'
-        query: '../@class'
-    }
-
-    HtmlRole {
-        name: 'positionIndex'
-        query: 'count(preceding-sibling::a[@class = "player"])'
-    }
-
-    HtmlRole {
-        name: 'line'
-        query: '../../div[@class = "head"]'
-    }
-
-    HtmlRole {
-        name: 'section-json'
-        query: 'concat(\'{"team":"\',../../../../span[@class = "team-name"],\'","line":"\',../../div[@class = "head"],\'"}\')'
-    }
+    onSeasonChanged: root.refresh()
+    onGameIdChanged: root.refresh()
 }

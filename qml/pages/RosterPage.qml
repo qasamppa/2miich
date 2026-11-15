@@ -26,23 +26,12 @@ import '../models'
 
 Page {
     id: page
-    property string source: 'https://old.liiga.fi' + details.rosters
     property variant details
 
-    onSourceChanged: refresh();
-
-    function refresh() {
-        var xhr = new XMLHttpRequest;
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState === 4) {
-                rosterModel.markup = xhr.responseText;
-            }
-        }
-        xhr.open('GET', source);
-        xhr.send();
-    }
     RosterModel {
         id: rosterModel
+        season: details ? details.season : 0
+        gameId: details ? details.id : 0
     }
 
     SilicaListView {
@@ -63,7 +52,7 @@ Page {
                 height: 0
                 Image {
                     id: bgHome
-                    source: 'image://cache/https://old.liiga.fi' + details['homelogo']
+                    source: 'image://cache/' + details['homelogo']
                     anchors.right: parent.left
                     anchors.rightMargin: -width / 2
                 }
@@ -82,7 +71,7 @@ Page {
             height: 0
             Image {
                 id: bgAway
-                source: 'image://cache/https://old.liiga.fi' + details['awaylogo']
+                source: 'image://cache/' + details['awaylogo']
                 anchors.right: parent.left
                 anchors.rightMargin: -width / 2
 		anchors.bottom: parent.bottom
@@ -104,7 +93,7 @@ Page {
                 anchors.right: parent.right
                 anchors.leftMargin: Theme.paddingMedium
                 Image {
-                    source: 'image://cache/https://old.liiga.fi' + image
+                    source: 'image://cache/' + image
                     sourceSize.height: bgItem.height
                 }
                 Label {
@@ -132,7 +121,6 @@ Page {
 
                 Label {
                     text: sectItem.sectData.team + ' '
-                    visible: sectItem.sectData.line === '1. kenttä'
                 }
                 Label {
                     text: sectItem.sectData.line

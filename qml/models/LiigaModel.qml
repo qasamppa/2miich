@@ -106,12 +106,9 @@ ListModel {
             overtime: root._overtimeLabel(game),
             startTime: new Date(game.start),
             tournament: root._tournamentCode(game),
-            // Not present on the games list; would need a per-game endpoint.
-            detail: '',
-            // Kept around for DetailsPage/RosterPage to build a per-game
-            // request once we know that endpoint's shape.
-            report: game.id + ':' + game.season,
-            rosters: game.id + ':' + game.season
+            // Not present on the games list; would need the per-game endpoint
+            // (https://liiga.fi/api/v2/games/{season}/{id}).
+            detail: ''
         };
     }
 
