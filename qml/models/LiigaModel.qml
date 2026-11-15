@@ -51,23 +51,18 @@ ListModel {
         return root._dateKey(a) === root._dateKey(b);
     }
 
-    // TODO: verify against a real finished game. Best guess based on the
-    // `periods[].category` values seen so far (NORMAL / OVERTIME /
-    // WINNING_SHOT_COMPETITION) plus goals scored in that period.
+    // Confirmed against real finished games: finishedType is one of
+    // ENDED_DURING_REGULAR_GAME_TIME, ENDED_DURING_EXTENDED_GAME_TIME
+    // (overtime), ENDED_DURING_WINNING_SHOT_COMPETITION (shootout).
     function _overtimeLabel(game) {
-        if (!game.ended)
+        switch (game.finishedType) {
+        case 'ENDED_DURING_WINNING_SHOT_COMPETITION':
+            return qsTr('SO');
+        case 'ENDED_DURING_EXTENDED_GAME_TIME':
+            return qsTr('OT');
+        default:
             return '';
-        var periods = game.periods || [];
-        for (var i = 0; i < periods.length; i++) {
-            var p = periods[i];
-            if (p.category === 'WINNING_SHOT_COMPETITION' &&
-                    (p.homeTeamGoals || p.awayTeamGoals))
-                return qsTr('SO');
-            if (p.category === 'OVERTIME' &&
-                    (p.homeTeamGoals || p.awayTeamGoals))
-                return qsTr('OT');
         }
-        return '';
     }
 
     // TODO: verify against a live game. `gameTime` is assumed to be

@@ -26,26 +26,11 @@ import '../models'
 
 Page {
     id: page
-    property string source: 'https://old.liiga.fi' + details.report + 'ajax'
     property variant details
 
-    onSourceChanged: refresh();
-
-    function refresh() {
-        var xhr = new XMLHttpRequest;
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState === 4) {
-                var xml = '<html>' + xhr.responseText.replace(/&ndash;/g, '-').replace(/&nbsp;/g, ' ').replace(/(<img[^>]*[^\/>])(>)/g, '$1/$2').replace(/<br>/g, '<br/>') + '</html>';
-                listView.model.markup = xml;
-                shotsModel.xml = xml;
-            }
-        }
-        xhr.open('GET', source);
-        xhr.send();
-    }
-    ShotsModel {
-        id: shotsModel
-    }
+    // TODO: shot map footer removed pending confirmation of the
+    // /api/v2/shotmap/{season}/{id} endpoint's JSON shape -- ShotsModel
+    // still expects scraped HTML and hasn't been converted yet.
 
     function formatOrdinal(n) {
         if ((n - 1) % 10 > 2 || Math.floor(n / 10) % 10 == 1)
@@ -60,7 +45,7 @@ Page {
 
     Image {
         id: bgHome
-        source: 'image://cache/https://old.liiga.fi' + details.homelogo
+        source: 'image://cache/' + details.homelogo
         anchors.right: parent.left
         anchors.rightMargin: -parent.width / 2
         anchors.verticalCenter: parent.verticalCenter
@@ -74,7 +59,7 @@ Page {
 
     Image {
         id: bgAway
-        source: 'image://cache/https://old.liiga.fi' + details.awaylogo
+        source: 'image://cache/' + details.awaylogo
         anchors.left: parent.right
         anchors.leftMargin: -parent.width / 2
         anchors.verticalCenter: parent.verticalCenter
@@ -106,7 +91,7 @@ Page {
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
                 Image {
-                    source: 'image://cache/https://old.liiga.fi' + details.homelogo
+                    source: 'image://cache/' + details.homelogo
                 }
 
                 Column {
@@ -140,13 +125,16 @@ Page {
                 }
 
                 Image {
-                    source: 'image://cache/https://old.liiga.fi' + details.awaylogo
+                    source: 'image://cache/' + details.awaylogo
                 }
             }
         }
 
         anchors.fill: parent
-        model: GameModel { }
+        model: GameModel {
+            season: details ? details.season : 0
+            gameId: details ? details.id : 0
+        }
         section.property: 'period'
         section.delegate: Rectangle {
             color: Theme.rgba(Theme.highlightBackgroundColor, 0.2)
@@ -205,30 +193,6 @@ Page {
                 }
             }
 
-        }
-        footer: Item {
-            width: parent.width
-            height: rink.height
-            Image {
-                id: rink
-                source: 'qrc:///images/rink.svg'
-                sourceSize.width: parent.width
-            }
-            MonochromeEffect {
-                sourceItem: rink
-            }
-            Repeater {
-                model: shotsModel
-
-                delegate: Image {
-                    source: 'image://cache/https://old.liiga.fi' + details[(cssclass.indexOf('home') != -1 ? 'homelogo' : 'awaylogo')]
-                    width: rink.width * 20 / 973
-                    height: width
-                    opacity: cssclass.indexOf('goal') !== -1 ? 1.0 : 0.5
-                    y: style.match(/top: ([0-9.]+)%/)[1] * rink.height / 100
-                    x: style.match(/left: ([0-9.]+)%/)[1] * rink.width / 100
-                }
-            }
         }
 
         VerticalScrollDecorator {}
