@@ -28,9 +28,12 @@ Page {
     id: page
     property variant details
 
-    // TODO: shot map footer removed pending confirmation of the
-    // /api/v2/shotmap/{season}/{id} endpoint's JSON shape -- ShotsModel
-    // still expects scraped HTML and hasn't been converted yet.
+    ShotsModel {
+        id: shotsModel
+        season: details ? details.season : 0
+        gameId: details ? details.id : 0
+        homeId: details ? details.homeid : ''
+    }
 
     function formatOrdinal(n) {
         if ((n - 1) % 10 > 2 || Math.floor(n / 10) % 10 == 1)
@@ -194,6 +197,32 @@ Page {
                 }
             }
 
+        }
+
+        footer: Item {
+            width: parent.width
+            height: rink.height
+            visible: shotsModel.count > 0
+            Image {
+                id: rink
+                source: 'qrc:///images/rink.svg'
+                sourceSize.width: parent.width
+            }
+            MonochromeEffect {
+                sourceItem: rink
+            }
+            Repeater {
+                model: shotsModel
+
+                delegate: Image {
+                    source: 'image://cache/' + (home ? details.homelogo : details.awaylogo)
+                    width: rink.width * 20 / 973
+                    height: width
+                    opacity: goal ? 1.0 : 0.5
+                    x: fx * rink.width - width / 2
+                    y: fy * rink.height - height / 2
+                }
+            }
         }
 
         VerticalScrollDecorator {}

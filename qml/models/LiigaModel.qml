@@ -91,6 +91,10 @@ ListModel {
             season: game.season,
             home: home.teamName || '',
             away: away.teamName || '',
+            // numeric part of teamId ("626537494:sport" -> "626537494"),
+            // which is what the shotmap endpoint uses as shootingTeamId
+            homeid: String(home.teamId || '').split(':')[0],
+            awayid: String(away.teamId || '').split(':')[0],
             homelogo: (home.logos && home.logos.darkBg) || '',
             awaylogo: (away.logos && away.logos.darkBg) || '',
             homescore: game.started ? home.goals : '',
