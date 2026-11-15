@@ -28,7 +28,7 @@ import '../helpers'
 Page {
     id: page
     property int detailsIndex: -1
-    property alias date: games.date
+    property alias date: games.model.date
 
     onStatusChanged: {
         if (status === PageStatus.Active) {
@@ -180,7 +180,6 @@ Page {
                 }
             }
         }
-        property variant date: new Date();
         property bool isError: false
         property var cache: ({})
         property bool gamesRunning: false
@@ -194,12 +193,12 @@ Page {
              wakeUp: oledify.haveLock
 
              onTriggered: {
-                 games.refresh();
+                 games.model.refresh();
              }
         }
 
         header: PageHeader {
-            title: { var d = games.model.date || games.date; return Qt.formatDate(d, 'ddd, ') + Qt.formatDate(d) }
+            title: { var d = games.model.date; return Qt.formatDate(d, 'ddd, ') + Qt.formatDate(d) }
         }
 
         ViewPlaceholder {
@@ -216,26 +215,25 @@ Page {
 
             MenuItem {
                 text: qsTr('Go to today')
-                onClicked: { pullDown.close(true); games.date = new Date() }
+                onClicked: { pullDown.close(true); games.model.date = new Date() }
             }
             MenuItem {
-                text: { var d = games.model.prev || new Date(games.date.getFullYear(), games.date.getMonth(), games.date.getDate() - 1); return qsTr('Previous: ') + Qt.formatDate(d, 'ddd, ') + Qt.formatDate(d) }
-                onClicked: { pullDown.close(true); games.date = (games.model.prev || new Date(games.date.getFullYear(), games.date.getMonth(), games.date.getDate() - 1)) }
+                text: { var d = games.model.prev || new Date(games.model.date.getFullYear(), games.model.date.getMonth(), games.model.date.getDate() - 1); return qsTr('Previous: ') + Qt.formatDate(d, 'ddd, ') + Qt.formatDate(d) }
+                onClicked: { pullDown.close(true); games.model.date = (games.model.prev || new Date(games.model.date.getFullYear(), games.model.date.getMonth(), games.model.date.getDate() - 1)) }
             }
         }
 
         PushUpMenu {
             id: pushUp
             MenuItem {
-                text: { var d = games.model.next || new Date(games.date.getFullYear(), games.date.getMonth(), games.date.getDate() + 1); return qsTr('Next: ') + Qt.formatDate(d, 'ddd, ') + Qt.formatDate(d) }
-                onClicked: { pushUp.close(true); games.date = (games.model.next || new Date(games.date.getFullYear(), games.date.getMonth(), games.date.getDate() + 1)) }
+                text: { var d = games.model.next || new Date(games.model.date.getFullYear(), games.model.date.getMonth(), games.model.date.getDate() + 1); return qsTr('Next: ') + Qt.formatDate(d, 'ddd, ') + Qt.formatDate(d) }
+                onClicked: { pushUp.close(true); games.model.date = (games.model.next || new Date(games.model.date.getFullYear(), games.model.date.getMonth(), games.model.date.getDate() + 1)) }
             }
         }
 
-        onDateChanged: {
-            cache = {};
-            games.model.markup = '';
-            refresh();
+        Connections {
+            target: games.model
+            onDateChanged: games.cache = {}
         }
 
         function setCover(component) {
@@ -257,17 +255,6 @@ Page {
                 setCover(coverComp);
             else
                 coverComp.statusChanged.connect(setCover.bind(this, coverComp));
-        }
-
-        function refresh() {
-            var xhr = new XMLHttpRequest();
-            xhr.onreadystatechange = function (e) {
-                if (xhr.readyState == 4) {
-                    games.model.markup = '<html><body>' + xhr.responseText;
-                }
-            }
-            xhr.open('GET', 'https://old.liiga.fi/game-tracking/' + date.getFullYear().toString() + '/' + ('0' + (date.getMonth() + 1).toString()).substr(-2) + '/' +  ('0' + date.getDate().toString()).substr(-2) + '/0?' + new Date().getTime());
-            xhr.send();
         }
 
         Component.onCompleted: {

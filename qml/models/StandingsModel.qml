@@ -17,45 +17,67 @@
  */
 
 import QtQuick 2.0
-import QtQuick.XmlListModel 2.0
 
-XmlListModel {
-    query: '/table/tbody/tr'
+// Standings model, backed by https://liiga.fi/api/v2/standings/ .
+// The response has separate arrays per competition phase; `section`
+// selects which one ("season" = regular season table, which is what
+// StatisticsPage currently shows).
+ListModel {
+    id: root
 
-    XmlRole {
-        query: 'td[2]/string()'
-        name: 'name'
+    property string section: 'season'
+    property int status: 0
+
+    readonly property string apiUrl: 'https://liiga.fi/api/v2/standings/'
+
+    // TODO: "EP" (extra points) semantics are a guess -- the old site
+    // showed W / T / L / EP / P / GD columns. The new API separates
+    // regulation vs overtime wins/losses explicitly, so this maps EP to
+    // "how many of the wins/losses were decided in overtime". Verify
+    // against the real liiga.fi standings page and adjust if wrong.
+    function _mapTeam(team) {
+        return {
+            name: team.teamName || '',
+            games: team.games || 0,
+            wins: (team.wins || 0) + (team.overtimeWins || 0),
+            ties: team.ties || 0,
+            losses: (team.losses || 0) + (team.overtimeLosses || 0),
+            extraPoints: (team.overtimeWins || 0) + (team.overtimeLosses || 0),
+            points: team.points || 0,
+            goalsFor: team.goals || 0,
+            goalsAgainst: team.goalsAgainst || 0
+        };
     }
-    XmlRole {
-        query: 'td[3]/string()'
-        name: 'games'
+
+    function refresh() {
+        status = 1;
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status !== 200) {
+                    status = 4;
+                    return;
+                }
+                var data;
+                try {
+                    data = JSON.parse(xhr.responseText);
+                } catch (e) {
+                    status = 4;
+                    return;
+                }
+
+                root.clear();
+                var teams = data[root.section] || [];
+                for (var i = 0; i < teams.length; i++)
+                    root.append(root._mapTeam(teams[i]));
+                status = 3;
+            }
+        };
+        xhr.open('GET', root.apiUrl);
+        xhr.send();
     }
-    XmlRole {
-        query: 'td[4]/string()'
-        name: 'wins'
-    }
-    XmlRole {
-        query: 'td[5]/string()'
-        name: 'ties'
-    }
-    XmlRole {
-        query: 'td[6]/string()'
-        name: 'losses'
-    }
-    XmlRole {
-        query: 'td[7]/string()'
-        name: 'extraPoints'
-    }
-    XmlRole {
-        query: 'td[8]/string()'
-        name: 'goalsFor'
-    }
-    XmlRole {
-        query: 'td[9]/string()'
-        name: 'goalsAgainst'
-    }
-    XmlRole {
-        query: 'td[10]/string()'
-        name: 'points'
-    }
+
+    onSectionChanged: root.refresh()
+
+    Component.onCompleted: root.refresh()
 }

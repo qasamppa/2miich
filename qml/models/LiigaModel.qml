@@ -17,211 +17,153 @@
  */
 
 import QtQuick 2.0
-import harbour.toomiich.HtmlListModel 1.0
-import harbour.toomiich.TzDateParser 1.0
 
-HtmlListModel {
+// Games list model, backed by the liiga.fi API v2 (https://liiga.fi/api/v2/games).
+//
+// NOTE: the games endpoint does not appear to take a date filter (at least
+// none is confirmed), so we fetch the whole payload once and filter/re-filter
+// client side whenever `date` changes. This also gives us `next`/`prev`
+// for free, by scanning for the nearest other date that has games.
+ListModel {
     id: root
-    property string source
+
+    // Day currently displayed. Settable; changing it re-filters the
+    // already-fetched game list (no new network request).
+    property variant date: new Date()
+
+    // Nearest date (before/after `date`) that has games scheduled, or
+    // undefined if none found in the currently loaded payload.
+    property variant next: undefined
+    property variant prev: undefined
+
+    // 0 = not loaded, 1 = loading, 3 = ready, 4 = error
     property int status: 0
-    property variant date: datesModel.ready && datesModel.count ? new Date(datesModel.get(0).current) : undefined
-    property variant next: datesModel.ready && datesModel.count ? new Date(datesModel.get(0).next) : undefined
-    property variant prev: datesModel.ready && datesModel.count ? new Date(datesModel.get(0).prev) : undefined
 
-    property Timer delayedReady: Timer {
-        interval: 0
-        repeat: false
-        onTriggered: root.status = 3
+    property var allGames: []
+
+    readonly property string apiUrl: 'https://liiga.fi/api/v2/games'
+
+    function _dateKey(d) {
+        return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
     }
 
-    property var teamFix: {
-                'Assat': 'Ässät',
-                'Hpk': 'HPK',
-                'Hifk': 'HIFK',
-                'Kookoo': 'KooKoo',
-                'Jyp': 'JYP',
-                'Saipa': 'SaiPa',
-                'Tps': 'TPS',
-                'Kalpa': 'KalPa',
-                'Karpat': 'Kärpät'
+    function _sameDay(a, b) {
+        return root._dateKey(a) === root._dateKey(b);
     }
-    function teamFromLogo(logo) {
-        var tmp;
 
-        if ((tmp = logo.match(/Logot_[0-9]+_([^_.]+)/))) {
-            logo = tmp[1];
-        } else if ((tmp = logo.match(/\d+x\d+px-([^.-]+)\.png/))) {
-            logo = tmp[1];
-        } else if ((tmp = logo.match(/\/(?:logo-)?([^-_.]+)[^\/]*$/))) {
-            logo = tmp[1];
+    // TODO: verify against a real finished game. Best guess based on the
+    // `periods[].category` values seen so far (NORMAL / OVERTIME /
+    // WINNING_SHOT_COMPETITION) plus goals scored in that period.
+    function _overtimeLabel(game) {
+        if (!game.ended)
+            return '';
+        var periods = game.periods || [];
+        for (var i = 0; i < periods.length; i++) {
+            var p = periods[i];
+            if (p.category === 'WINNING_SHOT_COMPETITION' &&
+                    (p.homeTeamGoals || p.awayTeamGoals))
+                return qsTr('SO');
+            if (p.category === 'OVERTIME' &&
+                    (p.homeTeamGoals || p.awayTeamGoals))
+                return qsTr('OT');
         }
-        logo = logo.replace(/^(.)(.*)$/, function (full, first, rest) {
-            return first.toUpperCase() + rest.toLowerCase();
-        });
-
-        if (teamFix.hasOwnProperty(logo))
-            return teamFix[logo];
-        return logo;
+        return '';
     }
 
-    property HtmlListModel datesModel: HtmlListModel {
-        markup: root.markup
-
-        onReadyChanged: {
-            if (ready && root.ready)
-                root.delayedReady.start()
-        }
-
-        query: '/html/body/div[@class = "dates"]'
-        HtmlRole {
-            name: 'current'
-            query: 'div[@class = "current"]/@data-date'
-        }
-        HtmlRole {
-            name: 'prev'
-            query: 'div[@class = "prev"]/@data-date'
-        }
-        HtmlRole {
-            name: 'next'
-            query: 'div[@class = "next"]/@data-date'
-        }
+    // TODO: verify against a live game. `gameTime` is assumed to be
+    // elapsed seconds; format matches the old "mm:ss" display.
+    function _formatPlayed(game) {
+        if (!game.started || game.ended)
+            return '';
+        var secs = game.gameTime || 0;
+        var m = Math.floor(secs / 60);
+        var s = secs % 60;
+        return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
     }
 
-    query: '/html/body/div[contains(@class, "games-container")]/div/div[@class="game"]'
-
-    property variant resource: TzDateParser {
-        id: dateParser
-        tz: 'Europe/Helsinki'
+    function _tournamentCode(game) {
+        // 'rs' (runkosarja/regular season) vs anything else ('po' = playoffs,
+        // kept as a catch-all until we've seen playoff `serie` values).
+        return game.serie === 'RUNKOSARJA' ? 'rs' : 'po';
     }
 
-    onReadyChanged: {
-        if (ready && datesModel.ready)
-            delayedReady.start()
+    function _mapGame(game) {
+        var home = game.homeTeam || {};
+        var away = game.awayTeam || {};
+
+        return {
+            id: game.id,
+            season: game.season,
+            home: home.teamName || '',
+            away: away.teamName || '',
+            homelogo: (home.logos && home.logos.darkBg) || '',
+            awaylogo: (away.logos && away.logos.darkBg) || '',
+            homescore: game.started ? home.goals : '',
+            awayscore: game.started ? away.goals : '',
+            started: !!game.started,
+            finished: !!game.ended,
+            played: root._formatPlayed(game),
+            overtime: root._overtimeLabel(game),
+            startTime: new Date(game.start),
+            tournament: root._tournamentCode(game),
+            // Not present on the games list; would need a per-game endpoint.
+            detail: '',
+            // Kept around for DetailsPage/RosterPage to build a per-game
+            // request once we know that endpoint's shape.
+            report: game.id + ':' + game.season,
+            rosters: game.id + ':' + game.season
+        };
     }
 
-    onMarkupChanged: {
-        status = 1
-    }
+    function _applyFilter() {
+        root.clear();
 
-    onSourceChanged: {
-        status = 0
-        var xhr = new XMLHttpRequest;
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE)
-                markup = '<html><body>' + xhr.responseText;
+        var nextDate = undefined;
+        var prevDate = undefined;
+
+        for (var i = 0; i < root.allGames.length; i++) {
+            var g = root.allGames[i];
+            var gd = new Date(g.start);
+
+            if (root._sameDay(gd, root.date)) {
+                root.append(root._mapGame(g));
+            } else if (gd > root.date && (!nextDate || gd < nextDate)) {
+                nextDate = gd;
+            } else if (gd < root.date && (!prevDate || gd > prevDate)) {
+                prevDate = gd;
+            }
         }
-        xhr.open('GET', source);
+
+        root.next = nextDate;
+        root.prev = prevDate;
+    }
+
+    function refresh() {
+        status = 1;
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status !== 200) {
+                    status = 4;
+                    return;
+                }
+                var data;
+                try {
+                    data = JSON.parse(xhr.responseText);
+                } catch (e) {
+                    status = 4;
+                    return;
+                }
+                root.allGames = data;
+                root._applyFilter();
+                status = 3;
+            }
+        };
+        xhr.open('GET', root.apiUrl);
         xhr.send();
     }
 
-    HtmlRole {
-        name: 'homelogo'
-        query: 'a/div/div[@class="home"]/div/div/img/@src'
-    }
-    HtmlRole {
-        name: 'home'
-        query: 'a/div/div[@class="home"]/div/div/img/@src'
-        function process(logo) {
-            return root.teamFromLogo(logo);
-        }
-    }
-    HtmlRole {
-        name: 'homescore'
-        query: 'a/div/div[@class="home"]/div/div[@class="goals"]'
+    onDateChanged: root._applyFilter()
 
-        function process(score) {
-            if (score === '-')
-                return '';
-            return score;
-        }
-    }
-    HtmlRole {
-        name: 'awaylogo'
-        query: 'a/div/div[@class="away"]/div/div/img/@src'
-    }
-    HtmlRole {
-        name: 'away'
-        query: 'a/div/div[@class="away"]/div/div/img/@src'
-        function process(logo) {
-            return root.teamFromLogo(logo);
-        }
-    }
-    HtmlRole {
-        name: 'tournament'
-        query: 'a[@class="game_link"]/@href'
-
-        function process(link) {
-            if (link.match(/\/runkosarja\//))
-                return 'rs';
-            return 'po';
-        }
-    }
-    HtmlRole {
-        name: 'awayscore'
-        query: 'a/div/div[@class="away"]/div/div[@class="goals"]'
-
-        function process(score) {
-            if (score === '-')
-                return '';
-            return score;
-        }
-    }
-    HtmlRole {
-        name: 'startTime'
-        query: 'concat(/html/body/div[@class = "dates"]/div[@class = "current"]/@data-date, " ", div[@class="status-short"])'
-
-        function process(text) {
-            if (!text.match(/Ottelu alkaa/))
-                return undefined;
-            return dateParser.parseDateTime(text, "yyyy-M-d' Ottelu alkaa klo 'hh:mm")
-        }
-    }
-    HtmlRole {
-        name: 'started'
-        query: 'div[@class="status-short"]'
-
-        function process(text) {
-            return !text.match(/Ottelu alkaa/);
-        }
-    }
-    HtmlRole {
-        name: 'finished'
-        query: 'div[@class="status-short"]'
-
-        function process(text) {
-            return !!text.match(/Ottelu päättynyt/);
-        }
-    }
-    HtmlRole {
-        name: 'report'
-        query: 'div/div/a[@class="report_link"]/@href'
-    }
-    HtmlRole {
-        name: 'rosters'
-        query: 'div/div/a[@class="rosters_link"]/@href'
-    }
-
-    HtmlRole {
-        name: 'played'
-        query: 'div[@class="status-short"]'
-
-        function process(text) {
-            if (text.match(/Ottelu alkaa/))
-                return '00:00';
-            return (text.match(/([0-9]+:[0-9]+)/ || [undefined, '']))[1];
-        }
-    }
-
-    HtmlRole {
-        name: 'overtime'
-        query: 'div[@class="status-short"]'
-
-        function process(text) {
-            return (text.match(/Ottelu päättynyt \(([^)]+)\)/) || [undefined, ''])[1];
-        }
-    }
-    HtmlRole {
-        name: 'detail'
-        query: 'normalize-space(div[@class="latest-event"])'
-    }
+    Component.onCompleted: root.refresh()
 }
