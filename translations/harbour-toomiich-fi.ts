@@ -62,7 +62,80 @@
     <message>
         <location filename="../qml/models/GameModel.qml" line="80"/>
         <source>%1 period</source>
-        <translation type="unfinished"></translation>
+        <translation>%1. erä</translation>
+    </message>
+    <message>
+        <source>power play</source>
+        <translation>ylivoima</translation>
+    </message>
+    <message>
+        <source>5-on-3 power play</source>
+        <translation>kahden miehen ylivoima</translation>
+    </message>
+    <message>
+        <source>short handed</source>
+        <translation>alivoima</translation>
+    </message>
+    <message>
+        <source>empty net</source>
+        <translation>tyhjä maali</translation>
+    </message>
+    <message>
+        <source>shootout winner</source>
+        <translation>voittolaukaus</translation>
+    </message>
+    <message>
+        <source>own goal</source>
+        <translation>oma maali</translation>
+    </message>
+    <message>
+        <source>penalty shot</source>
+        <translation>rangaistuslaukaus</translation>
+    </message>
+    <message>
+        <source>Assists: </source>
+        <translation>Syöttäjät: </translation>
+    </message>
+</context>
+<context>
+    <name>LiigaModel</name>
+    <message>
+        <source>OT</source>
+        <translation>JA</translation>
+    </message>
+    <message>
+        <source>SO</source>
+        <translation>VL</translation>
+    </message>
+</context>
+<context>
+    <name>RosterModel</name>
+    <message>
+        <source>Line %1</source>
+        <translation>%1. kenttä</translation>
+    </message>
+    <message>
+        <source>Goalies</source>
+        <translation>Maalivahdit</translation>
+    </message>
+    <message>
+        <source>Defensemen</source>
+        <translation>Puolustajat</translation>
+    </message>
+    <message>
+        <source>Forwards</source>
+        <translation>Hyökkääjät</translation>
+    </message>
+</context>
+<context>
+    <name>ScheduleModel</name>
+    <message>
+        <source>OT</source>
+        <translation>JA</translation>
+    </message>
+    <message>
+        <source>SO</source>
+        <translation>VL</translation>
     </message>
 </context>
 <context>
