@@ -21,37 +21,10 @@ import Sailfish.Silica 1.0
 import '..'
 import '../widgets'
 import '../models'
-import QtQuick.XmlListModel 2.0
-import harbour.toomiich.DiskCache 1.0
 import harbour.toomiich.TzDateParser 1.0
 
 Page {
     property variant mainPage
-
-    DiskCache { id: xmlCache }
-
-    onStatusChanged: {
-        if (status === PageStatus.Active) {
-            var src = "https://old.liiga.fi/ottelut/";
-            var cached = xmlCache.getFile(src);
-            var uri = src;
-
-            if (cached) uri = cached;
-
-            var xhr = new XMLHttpRequest;
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    if (uri === src)
-                        xmlCache.setFile(src, xhr.responseText);
-                    var begin = xhr.responseText.indexOf("<table");
-                    var end = xhr.responseText.lastIndexOf('</table>');
-                    listView.model.markup = '<html><body>' + xhr.responseText.substring(begin, end + 8) + '</body></html>';
-                }
-            }
-            xhr.open("GET", uri);
-            xhr.send();
-        }
-    }
 
     TzDateParser {
         id: dateParser
@@ -88,7 +61,7 @@ Page {
                     for (i = 0; i < count; i++) {
                         var r = get(i);
 
-                        if (r.date && new Date(Date.parse(section.replace(/^([0-9]+)([0-9]{2})([0-9]{2})$/, '$2/$3/$1'))) >= mainPage.date) {
+                        if (r.date && new Date(Date.parse(r.date.replace(/^([0-9]+)([0-9]{2})([0-9]{2})$/, '$2/$3/$1'))) >= mainPage.date) {
                             listView.positionViewAtIndex(i, ListView.Center);
                             break;
                         }
@@ -115,6 +88,7 @@ Page {
                 }
                 Logo {
                     team: home
+                    logoUrl: homelogo
                     scale: Theme.fontSizeExtraSmall / height
                 }
                 Label {
@@ -124,10 +98,11 @@ Page {
                 }
                 Logo {
                     team: away
+                    logoUrl: awaylogo
                     scale: Theme.fontSizeExtraSmall / height
                 }
                 Label {
-                    text: result !== ' - ' ? result + overtime : ''
+                    text: result !== '' ? result + overtime : ''
                     font.pixelSize: Theme.fontSizeExtraSmall
                     color: parent.parent.highlighted ? Theme.highlightColor : Theme.primaryColor
                 }

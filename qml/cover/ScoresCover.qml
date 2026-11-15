@@ -98,7 +98,7 @@ CoverBackground {
             Image {
                 id: bigHomeLogo
                 anchors.right: homeScore.left
-                source: isActive && homelogo ? 'image://cache/https://old.liiga.fi' + homelogo : ''
+                source: isActive && homelogo ? 'image://cache/' + homelogo : ''
                 height: children[0].height * (isActive ? 2 : 1)
                 width: children[0].width * (isActive ? 2 : 1)
                 y: isActive ? (timeLabel.y + timeLabel.height - height) / 2 : 0
@@ -106,6 +106,7 @@ CoverBackground {
                 Logo {
                     id: homeLogo
                     team: home
+                    logoUrl: homelogo
                     anchors.centerIn: parent
                     visible: !isActive || parent.status !== Image.Ready
                     scale: isActive ? 2.0 : 1.0
@@ -135,7 +136,7 @@ CoverBackground {
             Image {
                 id: bigAwayLogo
                 anchors.left: awayScore.right
-                source: isActive && awaylogo ? 'image://cache/https://old.liiga.fi' + awaylogo : ''
+                source: isActive && awaylogo ? 'image://cache/' + awaylogo : ''
                 height: children[0].height * (isActive ? 2 : 1)
                 width: children[0].width * (isActive ? 2 : 1)
                 y: isActive ? (timeLabel.y + timeLabel.height - height) / 2 : 0
@@ -143,6 +144,7 @@ CoverBackground {
                 Logo {
                     id: awayLogo
                     team: away
+                    logoUrl: awaylogo
                     anchors.centerIn: parent
                     visible: !isActive || parent.status !== Image.Ready
                     scale: isActive ? 2.0 : 1.0

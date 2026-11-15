@@ -172,6 +172,7 @@ Page {
                 Column {
                     Logo {
                         team: page.details[parent.parent.tm]
+                        logoUrl: page.details[parent.parent.tm === 'home' ? 'homelogo' : 'awaylogo']
                         anchors.horizontalCenter: parent.horizontalCenter
                     }
                     Label {

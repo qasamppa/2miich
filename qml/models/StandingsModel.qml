@@ -38,6 +38,7 @@ ListModel {
     function _mapTeam(team) {
         return {
             name: team.teamName || '',
+            logo: (team.teamLogos && team.teamLogos.darkBg) || '',
             games: team.games || 0,
             wins: (team.wins || 0) + (team.overtimeWins || 0),
             ties: team.ties || 0,

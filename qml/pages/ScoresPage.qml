@@ -277,6 +277,7 @@ Page {
                     Logo {
                         id: homeLogo
                         team: home
+                        logoUrl: homelogo
                         active: homescore > awayscore
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.padding
@@ -334,6 +335,7 @@ Page {
                         anchors.rightMargin: Theme.padding
                         anchors.verticalCenter: parent.verticalCenter
                         team: away
+                        logoUrl: awaylogo
                         active: awayscore > homescore
                     }
                 }

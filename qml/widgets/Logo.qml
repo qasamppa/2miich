@@ -21,6 +21,12 @@ import Sailfish.Silica 1.0
 
 Rectangle {
     property string team: 'Tappara'
+    // Official team logo URL from the API (e.g. row.homelogo/row.awaylogo).
+    // Used as a fallback whenever `team` isn't one of the hand-drawn
+    // icons baked into teams.png below -- this covers any team added or
+    // renamed since that sprite was last updated (e.g. newly promoted
+    // clubs) without us having to source/redraw crest artwork ourselves.
+    property string logoUrl: ''
     property bool active: true
     width: 41
     height: 41
@@ -69,7 +75,7 @@ Rectangle {
         property variant teamIndex: teams[team]
         anchors.centerIn: parent
         color: 'transparent'
-        width: widths[teamIndex]
+        width: teamIndex !== undefined ? widths[teamIndex] : parent.width
         height: 41
         clip: true
         Image {
@@ -80,9 +86,17 @@ Rectangle {
             anchors.leftMargin: -parent.offsets[parent.teamIndex]
             anchors.topMargin: active ? -41 : 0
         }
+        Image {
+            // Team not in the bundled sprite (e.g. a newly promoted club) --
+            // use the real logo the API gave us instead of guessing.
+            source: (parent.teamIndex === undefined && logoUrl) ? 'image://cache/' + logoUrl : ''
+            visible: parent.teamIndex === undefined && logoUrl !== ''
+            anchors.fill: parent
+            fillMode: Image.PreserveAspectFit
+        }
         Label {
             text: team
-            visible: parent.teamIndex === undefined
+            visible: parent.teamIndex === undefined && logoUrl === ''
             anchors.centerIn: parent
             color: Theme.primaryColor
         }

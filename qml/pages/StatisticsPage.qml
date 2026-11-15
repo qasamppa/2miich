@@ -30,7 +30,6 @@ Page {
             var xhr = new XMLHttpRequest;
             xhr.onreadystatechange = function () {
                 if (xhr.readyState === 4) {
-                    standings.model.xml = xhr.responseText.match(/(?:<div[^>]+team-standings[^>]+>(?:[\r\n]|.)*?)(<table(?:[\r\n]|.)*?<\/table>)/)[1];
                     var tmp = xhr.responseText.match(/(<div[^>]+goal-leaders[^>]+>(?:[\r\n]|.)*?<\/table>[\r\n\s]*<\/div>)/)[1];
                     tmp = tmp.replace(/<(?:img|br)[^>]*>/g, '');
                     goalLeaders.model.xml = tmp;
@@ -167,8 +166,9 @@ Page {
 
                         height: children[1].contentHeight
                         Logo {
-                            id: logo
+                            id: teamLogo
                             team: name
+                            logoUrl: logo
                         }
                         WidthLabel {
                             text: name
