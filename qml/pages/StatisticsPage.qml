@@ -26,22 +26,13 @@ Page {
     property variant mainPage
 
     onStatusChanged: {
+        // Leader tables come from the games feed; the download is shared
+        // and cached (see models/leaders.js), so refreshing all four is cheap.
         if (status === PageStatus.Active) {
-            var xhr = new XMLHttpRequest;
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    var tmp = xhr.responseText.match(/(<div[^>]+goal-leaders[^>]+>(?:[\r\n]|.)*?<\/table>[\r\n\s]*<\/div>)/)[1];
-                    tmp = tmp.replace(/<(?:img|br)[^>]*>/g, '');
-                    goalLeaders.model.xml = tmp;
-                    goalLeader.model.xml = tmp;
-                    tmp = xhr.responseText.match(/(<div[^>]+point-leaders[^>]+>(?:[\r\n]|.)*?<\/table>[\r\n\s]*<\/div>)/)[1];
-                    tmp = tmp.replace(/<(?:img|br)[^>]*>/g, '');
-                    pointLeaders.model.xml = tmp;
-                    pointLeader.model.xml = tmp;
-                }
-            }
-            xhr.open("GET", "https://old.liiga.fi/");
-            xhr.send();
+            pointLeader.model.refresh();
+            pointLeaders.model.refresh();
+            goalLeader.model.refresh();
+            goalLeaders.model.refresh();
         }
     }
     SilicaFlickable {
@@ -251,6 +242,7 @@ Page {
                         id: pLogo
                         anchors.left: parent.left
                         team: teamName
+                        logoUrl: logo
                     }
                     Label {
                         text: name
@@ -270,13 +262,13 @@ Page {
 
             Repeater {
                 id: pointLeader
-                model: LeaderModel {}
+                model: LeaderModel { kind: 'points' }
 
                 delegate: player
             }
             Repeater {
                 id: pointLeaders
-                model: PlayerListModel {}
+                model: PlayerListModel { kind: 'points' }
 
                 delegate: player
             }
@@ -287,13 +279,13 @@ Page {
 
             Repeater {
                 id: goalLeader
-                model: LeaderModel {}
+                model: LeaderModel { kind: 'goals' }
 
                 delegate: player
             }
             Repeater {
                 id: goalLeaders
-                model: PlayerListModel {}
+                model: PlayerListModel { kind: 'goals' }
 
                 delegate: player
             }

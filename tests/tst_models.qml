@@ -2,6 +2,7 @@ import QtQuick 2.0
 import QtTest 1.0
 import "../qml/models"
 import "fixtures.js" as Fx
+import "../qml/models/leaders.js" as Leaders
 
 // Unit tests for the liiga.fi API v2 models. Network access is replaced by
 // a mock XMLHttpRequest that serves trimmed real API responses
@@ -29,7 +30,7 @@ TestCase {
         };
     }
 
-    function init() { requests = []; }
+    function init() { requests = []; Leaders.clear(); }
 
     function find(model, key, value) {
         for (var i = 0; i < model.count; i++)
@@ -51,6 +52,8 @@ TestCase {
     Component { id: gameC; GameModel {} }
     Component { id: scheduleC; ScheduleModel {} }
     Component { id: shotsC; ShotsModel {} }
+    Component { id: leaderC; LeaderModel {} }
+    Component { id: playersC; PlayerListModel {} }
 
     // ---------------------------------------------------------- LiigaModel
 
@@ -389,5 +392,105 @@ TestCase {
     function test_shots_error() {
         compare(shots('', 500).status, 4);
         compare(shots('nope', 200).status, 4);
+    }
+
+    // -------------------------------------------------------- leaders
+
+    // The fixture's games are preseason; relabel two real finished games as
+    // regular-season games so they count.
+    function leaderGames() {
+        var busy = JSON.parse(JSON.stringify(Fx.gameBusy.game));       // Assat 8-3 Lukko
+        var so = JSON.parse(JSON.stringify(Fx.gameShootout.game));     // KalPa 3-2 Jukurit (SO)
+        busy.serie = 'RUNKOSARJA';
+        so.serie = 'RUNKOSARJA';
+        return [busy, so];
+    }
+
+    function totalGoals(table) {
+        var n = 0;
+        for (var i = 0; i < table.length; i++)
+            n += table[i].goals;
+        return n;
+    }
+
+    function test_leaders_only_regular_season_counts() {
+        var r = Leaders.compute(Fx.games);        // only game 2701280 is RUNKOSARJA
+        compare(totalGoals(r.goals), 8);
+        compare(r.goals.length, 17);
+    }
+
+    function test_leaders_shootout_goals_are_skipped() {
+        var games = [leaderGames()[1]];
+        compare(totalGoals(Leaders.compute(games).goals), 4);   // 5 goal events, 1 in the shootout
+    }
+
+    function test_leaders_real_game_top_scorer() {
+        var r = Leaders.compute([leaderGames()[0]]);
+        compare(r.goals[0].name, 'Carl Klingberg');
+        compare(r.goals[0].teamName, 'Ässät');
+        compare(r.goals[0].goals, 3);
+        compare(r.goals[0].assists, 1);
+        compare(r.goals[0].points, 4);
+        compare(totalGoals(r.goals), 11);
+        compare(r.goals.length, 21);
+        verify(r.goals[0].logo.indexOf('https://') === 0);
+    }
+
+    function test_leaders_points_include_assists_and_tiebreak_on_goals() {
+        function ev(scorer, assists) {
+            return { period: 1, scorerPlayer: scorer, assistantPlayers: assists };
+        }
+        var A = { playerId: 1, firstName: 'A', lastName: 'Scorer' };
+        var B = { playerId: 2, firstName: 'B', lastName: 'Setup' };
+        var C = { playerId: 3, firstName: 'C', lastName: 'Setup2' };
+        var game = { serie: 'RUNKOSARJA', awayTeam: { goalEvents: [] },
+                     homeTeam: { teamName: 'T', goalEvents: [ev(A, [B, C]), ev(A, [B]), ev(A, [B])] } };
+        var r = Leaders.compute([game]);
+        compare(r.goals[0].name, 'A Scorer');            // 3 goals
+        compare(r.points[0].name, 'A Scorer');           // 3 points...
+        compare(r.points[1].name, 'B Setup');            // ...ties are broken by goals, B has 3 assists
+        compare(r.points[1].points, 3);
+        compare(r.points[2].points, 1);
+        compare(Leaders.detail(r.points[1], 'points'), '3 (0+3)');
+        compare(Leaders.detail(r.goals[0], 'goals'), '3');
+    }
+
+    function test_leader_models_slice_the_table() {
+        var f = mock(leaderGames());
+        var leader = leaderC.createObject(tc, { xhrFactory: f, kind: 'points' });
+        var rest = playersC.createObject(tc, { xhrFactory: f, kind: 'points' });
+        compare(leader.status, 3);
+        compare(leader.count, 1);
+        compare(leader.get(0).name, 'Carl Klingberg');
+        compare(leader.get(0).detail, '4 (3+1)');
+        compare(rest.count, 9);
+        verify(rest.get(0).name !== leader.get(0).name);
+    }
+
+    function test_leader_goals_detail_is_plain_number() {
+        var m = leaderC.createObject(tc, { xhrFactory: mock(leaderGames()), kind: 'goals' });
+        compare(m.get(0).detail, '3');
+        compare(m.get(0).teamName, 'Ässät');
+    }
+
+    function test_leader_models_share_one_download() {
+        var f = mock(leaderGames());
+        leaderC.createObject(tc, { xhrFactory: f, kind: 'points' });
+        leaderC.createObject(tc, { xhrFactory: f, kind: 'goals' });
+        playersC.createObject(tc, { xhrFactory: f, kind: 'goals' });
+        compare(requests.length, 1);
+        compare(requests[0], 'https://liiga.fi/api/v2/games');
+    }
+
+    function test_leader_empty_before_season_starts() {
+        var m = leaderC.createObject(tc, { xhrFactory: mock(Fx.games.slice(0, 5)) });   // preseason only
+        compare(m.status, 3);
+        compare(m.count, 0);
+    }
+
+    function test_leader_error() {
+        compare(leaderC.createObject(tc, { xhrFactory: mock('', 500) }).status, 4);
+        Leaders.clear();
+        compare(leaderC.createObject(tc, { xhrFactory: mock('<html>', 200) }).status, 4);
     }
 }

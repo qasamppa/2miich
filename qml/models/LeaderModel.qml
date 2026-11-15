@@ -17,21 +17,44 @@
  */
 
 import QtQuick 2.0
-import QtQuick.XmlListModel 2.0
+import "leaders.js" as Leaders
 
-XmlListModel {
-    query: '/div//div[@class="info"]'
+// A slice of the goal or point leader table, derived from the games feed
+// (see leaders.js). `kind` is 'goals' or 'points'; `first` and `count`
+// select which ranks to show (default: just the leader).
+ListModel {
+    id: root
 
-    XmlRole {
-        name: 'name'
-        query: 'normalize-space(span[@class="name"]/string())'
+    // Request factory; overridden by the unit tests (tests/) with a mock.
+    property var xhrFactory: function () { return new XMLHttpRequest(); }
+
+    property string kind: 'goals'
+    property int first: 0
+    property int limit: 1
+    property int status: 0
+
+    function refresh() {
+        status = 1;
+        Leaders.load(root.xhrFactory, function (games) {
+            if (!games) {
+                status = 4;
+                return;
+            }
+            var table = Leaders.compute(games)[root.kind === 'points' ? 'points' : 'goals'];
+            root.clear();
+            var end = Math.min(table.length, root.first + root.limit);
+            for (var i = root.first; i < end; i++) {
+                root.append({
+                    name: table[i].name,
+                    teamName: table[i].teamName,
+                    logo: table[i].logo,
+                    detail: Leaders.detail(table[i], root.kind)
+                });
+            }
+            status = 3;
+        });
     }
-    XmlRole {
-        name: 'teamName'
-        query: 'normalize-space(span[@class="team"]/string())'
-    }
-    XmlRole {
-        name: 'detail'
-        query: 'normalize-space(span[@class="points" or @class = "goals"]/string())'
-    }
+
+    onKindChanged: root.refresh()
+    Component.onCompleted: root.refresh()
 }

@@ -67,6 +67,7 @@ OTHER_FILES += \
     qml/models/StandingsModel.qml \
     qml/models/LeaderModel.qml \
     qml/models/PlayerListModel.qml \
+    qml/models/leaders.js \
     qml/widgets/Heading.qml \
     qml/models/ShotsModel.qml \
     qml/pages/RosterPage.qml \

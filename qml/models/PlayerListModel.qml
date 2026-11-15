@@ -17,21 +17,10 @@
  */
 
 import QtQuick 2.0
-import QtQuick.XmlListModel 2.0
 
-XmlListModel {
-    query: '/div/table/tr'
-
-    XmlRole {
-        name: 'name'
-        query: 'normalize-space(td[2]/string())'
-    }
-    XmlRole {
-        name: 'teamName'
-        query: 'normalize-space(td[3]/string())'
-    }
-    XmlRole {
-        name: 'detail'
-        query: 'normalize-space(td[position() = last()]/string())'
-    }
+// The ranks below the leader (2nd to 10th) of the goal or point table.
+// Same data and `kind` property as LeaderModel.
+LeaderModel {
+    first: 1
+    limit: 9
 }
