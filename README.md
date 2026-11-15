@@ -74,4 +74,4 @@ See `tests/README.md`.
 
 - Original app: Santtu Lakkala (https://github.com/inzanity/2miich)
 - API v2 port: prepared with assistance from Claude (Anthropic) and
-  tested on a device by the fork maintainer. Edit this line to taste.
+  tested on a device by the fork maintainer.
