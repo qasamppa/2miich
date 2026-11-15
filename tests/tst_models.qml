@@ -207,32 +207,72 @@ TestCase {
     }
 
     function test_roster_real_sample() {
-        var m = roster(Fx.roster);
+        var m = roster(Fx.roster);                  // unplayed game: no lineup yet
         compare(m.status, 3);
         compare(m.count, 26 + 32);
         compare(requests[0], 'https://liiga.fi/api/v2/games/2027/2701489');
         var p = m.get(0);
-        compare(p.name, 'Toni Utunen');
-        compare(p.number, 3);
-        compare(p.team, 'Ilves');
-        compare(p.positionIndex, 1);          // defenseman
-        compare(p.line, 'DEFENSEMAN');        // line is null before lineups: falls back to role
+        compare(p.team, 'Ilves');                   // home team first
+        compare(p.positionIndex, 0);                // goalies first
+        compare(p.line, 'Goalies');
         compare(p.captain, false);
     }
 
-    function test_roster_goalies_sort_first_by_index() {
-        var m = roster(Fx.roster);
-        var goalie = null;
+    function test_roster_groups_are_contiguous() {
+        // ListView sections repeat their header whenever a group is split up
+        function check(data) {
+            var m = roster(data);
+            var seen = {}, last = '';
+            for (var i = 0; i < m.count; i++) {
+                var key = m.get(i).team + '|' + m.get(i).line;
+                if (key !== last) {
+                    verify(!seen[key], 'group split: ' + key);
+                    seen[key] = true;
+                    last = key;
+                }
+            }
+        }
+        check(Fx.roster);
+        check(Fx.gamePenalty);
+    }
+
+    function test_roster_published_lineup_uses_line_numbers() {
+        var m = roster(Fx.gamePenalty);              // finished game: players have lines
+        compare(m.count, 72);
+        var first = m.get(0);
+        compare(first.team, 'Sport');
+        compare(first.line, 'Line 1');
+        compare(first.positionIndex, 0);             // goalie leads the line
+        var labels = {};
         for (var i = 0; i < m.count; i++)
-            if (m.get(i).positionIndex === 0) { goalie = m.get(i); break; }
-        verify(goalie !== null, 'no goalie found');
-        compare(goalie.position, 'GOALIE');
+            labels[m.get(i).team + '|' + m.get(i).line] = true;
+        verify(labels['TPS|Line 3'], 'TPS line 3');
+        verify(labels['TPS|Forwards'] || labels['TPS|Goalies'], 'unlined players grouped by role');
+    }
+
+    function test_roster_all_known_role_codes_are_grouped() {
+        var m = roster(Fx.gamePenalty);
+        for (var i = 0; i < m.count; i++)
+            if (m.get(i).position)                  // KP has no role at all
+                verify(m.get(i).positionIndex !== 99, m.get(i).position + ' not grouped');
+    }
+
+    function test_roster_goalies_have_index_zero() {
+        var m = roster(Fx.roster);
+        var goalies = 0;
+        for (var i = 0; i < m.count; i++)
+            if (m.get(i).position === 'GOALIE') { compare(m.get(i).positionIndex, 0); goalies++; }
+        compare(goalies, 5);
     }
 
     function test_roster_line_used_when_present() {
         var data = JSON.parse(JSON.stringify(Fx.roster));
         data.homeTeamPlayers[0].line = 2;
-        compare(roster(data).get(0).line, '2');
+        var m = roster(data);
+        var found = false;
+        for (var i = 0; i < m.count; i++)
+            if (m.get(i).line === 'Line 2') found = true;
+        verify(found);
     }
 
     function test_roster_no_request_without_game() {
@@ -306,6 +346,51 @@ TestCase {
         var m = game(Fx.gameShootout, 200, 2703997);
         compare(m.count, 5);
         compare(JSON.parse(m.get(m.count - 1).period).text, 'Shootout');
+    }
+
+    function test_game_penalties_real_sample() {
+        var m = game(Fx.gamePenalty, 200, 2705868);    // Sport 2-0 TPS, one penalty each
+        compare(m.count, 4);                           // 2 goals + 2 penalties
+        var pens = [];
+        for (var i = 0; i < m.count; i++)
+            if (m.get(i).event.type === 'penalty') pens.push(m.get(i));
+        compare(pens.length, 2);
+        compare(pens[0].team, 'home');
+        compare(pens[0].time, '02:32');
+        compare(pens[0].event.detail, '2 min kampitus');
+        compare(pens[1].team, 'away');
+        compare(pens[1].time, '20:58');
+        compare(pens[1].event.detail, '2 min estäminen');
+    }
+
+    function test_game_penalty_names_come_from_the_roster() {
+        var m = game(Fx.gamePenalty, 200, 2705868);
+        var byId = {};
+        var all = Fx.gamePenalty.homeTeamPlayers.concat(Fx.gamePenalty.awayTeamPlayers);
+        for (var i = 0; i < all.length; i++)
+            byId[all[i].id] = all[i].firstName + ' ' + all[i].lastName;
+        var expected = [byId[60351425], byId[32219869]];
+        var got = [];
+        for (i = 0; i < m.count; i++)
+            if (m.get(i).event.type === 'penalty') got.push(m.get(i).event.text);
+        compare(got[0], expected[0]);
+        compare(got[1], expected[1]);
+        verify(got[0].indexOf('Åkerström') !== -1);
+    }
+
+    function test_game_events_with_penalties_stay_sorted() {
+        var m = game(Fx.gamePenalty, 200, 2705868);
+        for (var i = 1; i < m.count; i++)
+            verify(m.get(i).gameTime >= m.get(i - 1).gameTime, 'sorted at ' + i);
+    }
+
+    function test_game_penalty_without_known_player_and_with_info() {
+        var data = { game: { homeTeam: { goalEvents: [], penaltyEvents: [
+            { playerId: 999, gameTime: 10, period: 1, penaltyMinutes: 5, penaltyFaultName: 'Taklaus', penaltyInfo: 'jäähy' }] },
+            awayTeam: {} } };
+        var e = game(data).get(0);
+        compare(e.event.text, '');
+        compare(e.event.detail, '5 min taklaus (jäähy)');
     }
 
     function test_game_error() {

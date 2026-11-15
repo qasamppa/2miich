@@ -29,13 +29,15 @@ import QtQuick 2.0
 // IM = own goal, RL = penalty shot), homeTeamScore/awayTeamScore
 // (running score after this goal).
 //
-// NOT YET IMPLEMENTED: penaltyEvents, goalKeeperEvents,
-// goalKeeperChanges. These arrays exist on the single-game endpoint
-// (confirmed present, but empty on every sample we've seen so far --
-// either the game hadn't been played, or the bulk /games list doesn't
-// include them at all). Need a finished game's *per-game* endpoint
-// response with penalties/goalie changes actually populated before
-// these can be added without guessing field names.
+// penaltyEvents[] per team (CONFIRMED from a finished game): playerId,
+// gameTime, period, penaltyMinutes, penaltyFaultName (Finnish text, e.g.
+// "Kampitus"), penaltyFaultType (code), penaltyInfo. Events carry no player
+// names, so these are looked up by id in homeTeamPlayers/awayTeamPlayers
+// of the same response.
+//
+// NOT YET IMPLEMENTED: goalKeeperEvents, goalKeeperChanges (empty in every
+// sample so far, since no goalie change happened in them -- need a game
+// that has one) and timeouts (`timeOut` is null in all samples).
 ListModel {
     id: root
 
@@ -96,6 +98,29 @@ ListModel {
         };
     }
 
+    function _lowerFirst(text) {
+        return text ? text.charAt(0).toLowerCase() + text.substring(1) : '';
+    }
+
+    function _mapPenalty(ev, team, players) {
+        var p = players[String(ev.playerId)];
+        var detail = (ev.penaltyMinutes || 0) + ' min ' + root._lowerFirst(ev.penaltyFaultName || '');
+        if (ev.penaltyInfo)
+            detail += ' (' + ev.penaltyInfo + ')';
+
+        return {
+            gameTime: ev.gameTime,
+            time: root._formatTime(ev.gameTime),
+            team: team,
+            period: root._periodInfo(ev.period),
+            event: {
+                type: 'penalty',
+                text: root._playerName(p),
+                detail: detail.trim()
+            }
+        };
+    }
+
     function refresh() {
         if (!season || !gameId) {
             root.clear();
@@ -121,6 +146,11 @@ ListModel {
                 var game = data.game || data;
                 var events = [];
                 var i;
+
+                var players = {};
+                var all = (data.homeTeamPlayers || []).concat(data.awayTeamPlayers || []);
+                for (i = 0; i < all.length; i++)
+                    players[String(all[i].id)] = all[i];
                 var home = (game.homeTeam && game.homeTeam.goalEvents) || [];
                 var away = (game.awayTeam && game.awayTeam.goalEvents) || [];
 
@@ -128,6 +158,13 @@ ListModel {
                     events.push(root._mapGoal(home[i], 'home'));
                 for (i = 0; i < away.length; i++)
                     events.push(root._mapGoal(away[i], 'away'));
+
+                var homePen = (game.homeTeam && game.homeTeam.penaltyEvents) || [];
+                var awayPen = (game.awayTeam && game.awayTeam.penaltyEvents) || [];
+                for (i = 0; i < homePen.length; i++)
+                    events.push(root._mapPenalty(homePen[i], 'home', players));
+                for (i = 0; i < awayPen.length; i++)
+                    events.push(root._mapPenalty(awayPen[i], 'away', players));
 
                 events.sort(function (a, b) { return a.gameTime - b.gameTime; });
 
