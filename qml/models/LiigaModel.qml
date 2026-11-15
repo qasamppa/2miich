@@ -27,6 +27,9 @@ import QtQuick 2.0
 ListModel {
     id: root
 
+    // Request factory; overridden by the unit tests (tests/) with a mock.
+    property var xhrFactory: function () { return new XMLHttpRequest(); }
+
     // Day currently displayed. Settable; changing it re-filters the
     // already-fetched game list (no new network request).
     property variant date: new Date()
@@ -136,7 +139,7 @@ ListModel {
 
     function refresh() {
         status = 1;
-        var xhr = new XMLHttpRequest();
+        var xhr = root.xhrFactory();
         xhr.onreadystatechange = function () {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status !== 200) {

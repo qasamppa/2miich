@@ -39,6 +39,9 @@ import QtQuick 2.0
 ListModel {
     id: root
 
+    // Request factory; overridden by the unit tests (tests/) with a mock.
+    property var xhrFactory: function () { return new XMLHttpRequest(); }
+
     property int season
     property int gameId
     property int status: 0
@@ -100,7 +103,7 @@ ListModel {
         }
 
         status = 1;
-        var xhr = new XMLHttpRequest();
+        var xhr = root.xhrFactory();
         xhr.onreadystatechange = function () {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status !== 200) {

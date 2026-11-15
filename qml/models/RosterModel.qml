@@ -30,14 +30,17 @@ import QtQuick 2.0
 ListModel {
     id: root
 
+    // Request factory; overridden by the unit tests (tests/) with a mock.
+    property var xhrFactory: function () { return new XMLHttpRequest(); }
+
     property int season
     property int gameId
     property int status: 0
 
     // roleCode ordering, so goalies/defensemen/forwards group sensibly
-    // even before `line` is populated. Best guess: C = goalkeeper
-    // (maalivahti), P = defenseman (puolustaja), H = forward (hyökkääjä).
-    readonly property var _roleOrder: ({ 'C': 0, 'P': 1, 'H': 2 })
+    // even before `line` is populated. Confirmed from a real roster:
+    // MV = GOALIE (maalivahti), P = DEFENSEMAN, H = STRIKER (hyokkaaja).
+    readonly property var _roleOrder: ({ 'MV': 0, 'P': 1, 'H': 2 })
 
     function _fullName(p) {
         return (p.firstName || '') + ' ' + (p.lastName || '');
@@ -77,7 +80,7 @@ ListModel {
         }
 
         status = 1;
-        var xhr = new XMLHttpRequest();
+        var xhr = root.xhrFactory();
         xhr.onreadystatechange = function () {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status !== 200) {

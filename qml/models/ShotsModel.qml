@@ -1,3 +1,21 @@
+/*
+ * 2miich - Liiga scores app
+ * Copyright (C) 2014 Santtu Lakkala <inz@inz.fi>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import QtQuick 2.0
 
 // Shot map, backed by https://liiga.fi/api/v2/shotmap/{season}/{gameId} .
@@ -23,6 +41,9 @@ import QtQuick 2.0
 ListModel {
     id: root
 
+    // Request factory; overridden by the unit tests (tests/) with a mock.
+    property var xhrFactory: function () { return new XMLHttpRequest(); }
+
     property int season
     property int gameId
     property string homeId
@@ -32,10 +53,12 @@ ListModel {
     property real height: 500
 
     function refresh() {
-        if (!season || !gameId)
+        // Wait until everything is set; the three properties are bound
+        // together by the page, so this avoids one request per property.
+        if (!season || !gameId || !homeId)
             return;
         status = 1;
-        var xhr = new XMLHttpRequest();
+        var xhr = root.xhrFactory();
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE)
                 return;
