@@ -10,3 +10,7 @@ real API responses (`fixtures.js`) through a mock `XMLHttpRequest`
 Verified with Qt 5.15 (Sailfish ships an older Qt, but the models only use
 plain QtQuick 2.0 `ListModel` and JavaScript). `run.sh` sets
 `TZ=Europe/Helsinki` because `LiigaModel` filters games by local day.
+
+`tests/check-translations.py` (run first by `run.sh`) checks that every
+`qsTr()` / `QT_TR_NOOP()` string has a finished Finnish translation in the
+right context.

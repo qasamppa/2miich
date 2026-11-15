@@ -150,7 +150,7 @@ Page {
                 property var sectData: JSON.parse(section)
                 anchors.fill: parent
                 anchors.margins: Theme.paddingMedium
-                text: sectData.hasOwnProperty('num') ? qsTr(sectData.text).arg(formatOrdinal(sectData.num)) : qsTr(sectData.text)
+                text: sectData.hasOwnProperty('num') ? qsTranslate('GameModel', sectData.text).arg(formatOrdinal(sectData.num)) : qsTranslate('GameModel', sectData.text)
             }
         }
 

@@ -62,7 +62,7 @@
     <message>
         <location filename="../qml/models/GameModel.qml" line="80"/>
         <source>%1 period</source>
-        <translation>%1. erä</translation>
+        <translation>%1 erä</translation>
     </message>
     <message>
         <source>power play</source>
