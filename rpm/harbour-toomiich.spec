@@ -7,14 +7,13 @@
 
 Name:       harbour-toomiich
 Summary:    2Miich - liigaa
-Version:    0.1.13
+Version:    0.2.0
 Release:    1
 Group:      Applications/Internet
 License:    GPL
 URL:        http://inz.fi/2miich/
 Source0:    %{name}-%{version}.tar.bz2
 Requires:   sailfishsilica-qt5 >= 0.10.9
-Requires:   qt5-qtdeclarative-import-xmllistmodel
 BuildRequires:  pkgconfig(sailfishapp) >= 1.0.2
 BuildRequires:  pkgconfig(Qt5Core)
 BuildRequires:  pkgconfig(Qt5Qml)
