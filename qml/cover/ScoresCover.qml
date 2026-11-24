@@ -116,7 +116,7 @@ CoverBackground {
                 id: homeScore
                 text: homescore
                 anchors.right: separator.left
-                font.bold: homescore >= awayscore
+                font.bold: Number(homescore) >= Number(awayscore)
                 font.pixelSize: row.fontSize
             }
 
@@ -130,7 +130,7 @@ CoverBackground {
                 id: awayScore
                 text: awayscore
                 anchors.left: separator.right
-                font.bold: awayscore >= homescore
+                font.bold: Number(awayscore) >= Number(homescore)
                 font.pixelSize: row.fontSize
             }
             Image {

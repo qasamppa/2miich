@@ -90,8 +90,8 @@ TestCase {
         var g = find(liiga(Fx.games), 'id', 2705868);   // Sport 2-0 TPS
         compare(g.home, 'Sport');
         compare(g.away, 'TPS');
-        compare(g.homescore, 2);
-        compare(g.awayscore, 0);
+        compare(g.homescore, '2');
+        compare(g.awayscore, '0');
         compare(g.started, true);
         compare(g.finished, true);
         compare(g.overtime, '');
@@ -130,7 +130,7 @@ TestCase {
         compare(g.started, true);
         compare(g.finished, false);
         compare(g.played, '29:33');
-        compare(g.homescore, 1);
+        compare(g.homescore, '1');
     }
 
     function test_liiga_tournament_code() {
@@ -150,6 +150,21 @@ TestCase {
         var g = find(liiga(Fx.games), 'id', 2705868);
         compare(g.homeid, '626537494');
         compare(g.awayid, '651304385');
+    }
+
+    // ListModel fixes each role's type with the first row it ever gets (and
+    // keeps it after clear()). Scores of not-started games are '' and
+    // finished ones are numbers; switching from one day to the other made
+    // the numbers come back undefined.
+    function test_liiga_scores_survive_switching_between_days() {
+        var m = liiga(Fx.games, 200, new Date(2026, 8, 15, 12, 0));   // not-started games first
+        compare(m.get(0).homescore, '');
+        m.date = new Date(2026, 7, 7, 12, 0);                         // then a finished day
+        var g = find(m, 'id', 2705868);
+        compare(g.homescore, '2');
+        compare(g.awayscore, '0');
+        m.date = new Date(2026, 8, 15, 12, 0);
+        compare(m.get(0).homescore, '');
     }
 
     function test_liiga_http_error() {

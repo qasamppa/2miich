@@ -100,8 +100,10 @@ ListModel {
             awayid: String(away.teamId || '').split(':')[0],
             homelogo: (home.logos && home.logos.darkBg) || '',
             awaylogo: (away.logos && away.logos.darkBg) || '',
-            homescore: game.started ? home.goals : '',
-            awayscore: game.started ? away.goals : '',
+            // Always strings: a ListModel fixes a role's type with its first row
+            // (kept across clear()), and not-started games have ''.
+            homescore: game.started ? String(home.goals || 0) : '',
+            awayscore: game.started ? String(away.goals || 0) : '',
             started: !!game.started,
             finished: !!game.ended,
             played: root._formatPlayed(game),
