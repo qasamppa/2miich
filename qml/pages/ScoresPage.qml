@@ -140,11 +140,11 @@ Page {
                     if (date && date.toDateString() === new Date().toDateString() && count > 0) {
                         for (var i = 0; i < count; i++) {
                             var r = get(i);
-                            if (games.cache[r.home] !== undefined && r.homescore > games.cache[r.home])
+                            if (games.cache[r.home] !== undefined && Number(r.homescore) > Number(games.cache[r.home]))
                                 goals = true;
                             games.cache[r.home] = r.homescore;
 
-                            if (games.cache[r.away] !== undefined && r.awayscore > games.cache[r.away])
+                            if (games.cache[r.away] !== undefined && Number(r.awayscore) > Number(games.cache[r.away]))
                                 goals = true;
                             games.cache[r.away] = r.awayscore;
 

@@ -157,6 +157,7 @@ ListModel {
                 }
                 root.allGames = data;
                 root._applyFilter();
+                root.lastFetch = Date.now();
                 status = 3;
             }
         };
@@ -164,7 +165,34 @@ ListModel {
         xhr.send();
     }
 
-    onDateChanged: root._applyFilter()
+    // When the data was last downloaded (ms since epoch).
+    property double lastFetch: 0
+    // Data older than this is downloaded again when the day changes.
+    property int maxAgeMs: 60000
+
+    // Changing the day re-filters at once. Shortly after, either fresh data
+    // is fetched (if the cached copy is old, e.g. the app was left open
+    // overnight) or the status is cycled, so the page recomputes its
+    // "games running / pending" flags and the update timer for the new day,
+    // as it did when the original downloaded every day separately. It runs
+    // in a zero-interval timer so the page can reset its goal cache first.
+    property Timer dayChanged: Timer {
+        interval: 0
+        repeat: false
+        onTriggered: {
+            if (Date.now() - root.lastFetch > root.maxAgeMs) {
+                root.refresh();
+            } else if (root.status === 3) {
+                root.status = 1;
+                root.status = 3;
+            }
+        }
+    }
+
+    onDateChanged: {
+        root._applyFilter();
+        root.dayChanged.restart();
+    }
 
     Component.onCompleted: root.refresh()
 }

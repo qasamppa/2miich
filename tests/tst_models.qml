@@ -167,6 +167,37 @@ TestCase {
         compare(m.get(0).homescore, '');
     }
 
+    function test_liiga_day_change_with_fresh_data_cycles_status_without_download() {
+        var m = liiga(Fx.games);
+        var seen = [];
+        m.statusChanged.connect(function () { seen.push(m.status); });
+        m.date = new Date(2026, 7, 8, 12, 0);
+        compare(m.count, 1);                             // filtered immediately
+        wait(30);
+        compare(requests.length, 1);                     // no new download
+        compare(seen.join(','), '1,3');                  // page recomputes its timer flags
+    }
+
+    function test_liiga_day_change_with_old_data_downloads_again() {
+        var m = liiga(Fx.games);
+        m.lastFetch = Date.now() - 120000;               // cached copy is two minutes old
+        m.date = new Date(2026, 7, 8, 12, 0);
+        wait(30);
+        compare(requests.length, 2);
+        compare(m.status, 3);
+        compare(m.count, 1);
+    }
+
+    function test_liiga_failed_refresh_keeps_old_lastfetch() {
+        var m = liiga(Fx.games);
+        var first = m.lastFetch;
+        verify(first > 0);
+        m.xhrFactory = mock('', 500);
+        m.refresh();
+        compare(m.status, 4);
+        compare(m.lastFetch, first);
+    }
+
     function test_liiga_http_error() {
         compare(liiga('boom', 500).status, 4);
     }
