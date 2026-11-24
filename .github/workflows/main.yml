@@ -1,0 +1,84 @@
+name: Build RPMs
+
+# Pushing a version tag (e.g. 0.2.0) builds the RPMs and publishes them as a
+# GitHub release. Pull requests and manual runs build and keep the RPMs as a
+# downloadable workflow artifact, without making a release.
+on:
+  push:
+    tags:
+      - '[0-9]*.[0-9]*.[0-9]*'
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  # Sailfish OS build target; must exist at
+  # https://hub.docker.com/r/coderus/sailfishos-platform-sdk/tags
+  RELEASE: 5.0.0.43
+
+# Default for every job: read-only. The build job raises it for releases.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qtdeclarative5-dev-tools qttools5-dev-tools \
+            qml-module-qttest qml-module-qtquick2 qml-module-qtquick-window2
+
+      - name: Run tests
+        run: tests/run.sh
+
+  build:
+    name: Build RPMs
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create the release and upload the RPMs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive   # 3rdparty/ is needed to compile
+
+      - name: Check the tag matches the spec version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          spec_version=$(awk '/^Version:/ {print $2}' rpm/harbour-toomiich.spec)
+          if [ "${GITHUB_REF_NAME%%-*}" != "$spec_version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match Version $spec_version in rpm/harbour-toomiich.spec"
+            exit 1
+          fi
+
+      - name: Build aarch64
+        uses: coderus/github-sfos-build@sfos5
+        with:
+          release: ${{ env.RELEASE }}
+          arch: aarch64
+
+      - name: Build armv7hl
+        uses: coderus/github-sfos-build@sfos5
+        with:
+          release: ${{ env.RELEASE }}
+          arch: armv7hl
+
+      - name: Keep the RPMs as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpms
+          path: RPMS/*.rpm
+
+      - name: Create a release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: RPMS/*.rpm
