@@ -185,7 +185,7 @@ Page {
         property bool gamesPending: false
 
         PersistentTimer {
-             interval: games.gamesRunning ? 30000 : 600000
+             interval: games.gamesRunning ? 60000 : 600000
              maxError: 10000
              running: games.gamesRunning || games.gamesPending
              repeat: true
