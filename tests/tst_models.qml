@@ -55,6 +55,66 @@ TestCase {
     Component { id: leaderC; LeaderModel {} }
     Component { id: playersC; PlayerListModel {} }
 
+    // Answers by URL: routes = { url: { body: ..., status: 200 } }; unknown URLs give 404.
+    // With `deferred` set, responses are queued in tc.queue and delivered by flush().
+    property var queue: []
+    function mockRoutes(routes, deferred) {
+        return function () {
+            return {
+                readyState: 0, status: 0, responseText: '', onreadystatechange: null,
+                open: function (method, url) { this.url = url; },
+                send: function () {
+                    tc.requests.push(this.url);
+                    var self = this;
+                    var r = routes[this.url] || { body: '', status: 404 };
+                    var deliver = function () {
+                        self.status = r.status === undefined ? 200 : r.status;
+                        self.responseText = typeof r.body === 'string' ? r.body : JSON.stringify(r.body);
+                        self.readyState = 4;
+                        self.onreadystatechange();
+                    };
+                    if (deferred) tc.queue.push(deliver); else deliver();
+                }
+            };
+        };
+    }
+    function flush() { var q = queue; queue = []; for (var i = 0; i < q.length; i++) q[i](); }
+
+    // A running game (as in the feed) plus one about to start, one that starts
+    // much later and a finished one -- relative to now so the tests do not
+    // depend on the date they run.
+    function liveFeed() {
+        function copy(o) { return JSON.parse(JSON.stringify(o)); }
+        var now = Date.now();
+        var live = copy(gameById(2705868));               // per-game fixture says: finished 2-0
+        live.start = new Date(now - 20 * 60000).toISOString();
+        live.started = true; live.ended = false; live.finishedType = 'ACTIVE_OR_NOT_STARTED';
+        live.gameTime = 1200; live.homeTeam.goals = 1; live.awayTeam.goals = 0;
+        var soon = copy(gameById(2701280));
+        soon.id = 9000001; soon.start = new Date(now + 5 * 60000).toISOString();
+        soon.started = false; soon.ended = false; soon.finishedType = 'ACTIVE_OR_NOT_STARTED';
+        soon.homeTeam.goals = 0; soon.awayTeam.goals = 0;
+        var later = copy(soon);
+        later.id = 9000002; later.start = new Date(now + 2 * 3600000).toISOString();
+        var done = copy(gameById(2701824));
+        done.start = new Date(now - 5 * 3600000).toISOString();
+        return [live, soon, later, done];
+    }
+    // The finished per-game fixture, as the game would answer while the feed
+    // entry (feed[0]) is still live: same id and start time.
+    function finishedAnswer(feed) {
+        var a = JSON.parse(JSON.stringify(Fx.gamePenalty));
+        a.game.start = feed[0].start;
+        return a;
+    }
+    property string gameUrl: 'https://liiga.fi/api/v2/games/2027/'
+    function liveModel(feed) {
+        var m = liiga(feed, 200, new Date(Date.now() - 20 * 60000));
+        // the day of the live game; the others may fall on a neighbouring day
+        requests = [];
+        return m;
+    }
+
     // ---------------------------------------------------------- LiigaModel
 
     function liiga(body, status, date) {
@@ -196,6 +256,107 @@ TestCase {
         m.refresh();
         compare(m.status, 4);
         compare(m.lastFetch, first);
+    }
+
+    function test_liiga_update_fetches_only_the_live_games() {
+        var feed = liveFeed();
+        var m = liveModel(feed);
+        var routes = {};
+        routes[gameUrl + '2705868'] = { body: finishedAnswer(feed) };            // now finished 2-0
+        routes[gameUrl + '9000001'] = { body: { game: Object.assign({}, feed[1], { started: true, gameTime: 5 }) } };
+        m.xhrFactory = mockRoutes(routes);
+        var statuses = [];
+        m.statusChanged.connect(function () { statuses.push(m.status); });
+        var fetched = m.lastFetch;
+
+        m.update();
+
+        compare(requests.length, 2);                                           // not the feed, not 'later', not 'done'
+        verify(requests.indexOf(gameUrl + '2705868') !== -1);
+        verify(requests.indexOf(gameUrl + '9000001') !== -1);
+        compare(statuses.join(','), '1,3');                                    // one cycle for the page
+        compare(m.lastFetch, fetched);                                         // still the old full download
+        var g = find(m, 'id', 2705868);
+        compare(g.homescore, '2');
+        compare(g.finished, true);
+        compare(m.updating, false);
+    }
+
+    function test_liiga_update_notices_a_game_starting() {
+        var feed = liveFeed();
+        var m = liveModel(feed);
+        var startedGame = JSON.parse(JSON.stringify(feed[1]));
+        startedGame.started = true; startedGame.gameTime = 30;
+        startedGame.homeTeam.goals = 1;
+        var routes = {};
+        routes[gameUrl + '2705868'] = { body: finishedAnswer(feed) };
+        routes[gameUrl + '9000001'] = { body: { game: startedGame } };
+        m.xhrFactory = mockRoutes(routes);
+        m.date = new Date(startedGame.start);                                  // look at the day it starts on
+        wait(30);
+        requests = [];
+        m.update();
+        var g = find(m, 'id', 9000001);
+        compare(g.started, true);
+        compare(g.homescore, '1');
+        compare(g.played, '00:30');
+    }
+
+    function test_liiga_update_without_live_games_downloads_the_feed() {
+        var m = liiga(Fx.games);                                               // all old or finished
+        requests = [];
+        m.update();
+        compare(requests.length, 1);
+        compare(requests[0], 'https://liiga.fi/api/v2/games');
+    }
+
+    function test_liiga_update_downloads_the_feed_when_it_is_old() {
+        var m = liveModel(liveFeed());
+        m.xhrFactory = mockRoutes({ 'https://liiga.fi/api/v2/games': { body: liveFeed() } });
+        m.lastFetch = Date.now() - 11 * 60000;
+        m.update();
+        compare(requests.length, 1);
+        compare(requests[0], 'https://liiga.fi/api/v2/games');
+        verify(Date.now() - m.lastFetch < 5000);
+    }
+
+    function test_liiga_update_falls_back_to_the_feed_when_a_game_fails() {
+        var m = liveModel(liveFeed());
+        var routes = {};
+        routes[gameUrl + '2705868'] = { body: '', status: 500 };
+        routes[gameUrl + '9000001'] = { body: { game: liveFeed()[1] } };
+        routes['https://liiga.fi/api/v2/games'] = { body: liveFeed() };
+        m.xhrFactory = mockRoutes(routes);
+        m.update();
+        compare(requests[requests.length - 1], 'https://liiga.fi/api/v2/games');
+        compare(m.status, 3);
+        compare(m.updating, false);
+    }
+
+    function test_liiga_update_ignores_a_call_while_one_is_running() {
+        var feed = liveFeed();
+        var m = liveModel(feed);
+        var routes = {};
+        routes[gameUrl + '2705868'] = { body: finishedAnswer(feed) };
+        routes[gameUrl + '9000001'] = { body: { game: feed[1] } };
+        m.xhrFactory = mockRoutes(routes, true);
+        m.update();
+        compare(m.updating, true);
+        m.update();                                                            // timer fired again too early
+        compare(requests.length, 2);
+        flush();
+        compare(m.updating, false);
+        compare(m.status, 3);
+    }
+
+    function test_liiga_update_ignores_a_response_for_another_game() {
+        var m = liveModel(liveFeed());
+        var routes = {};
+        routes[gameUrl + '2705868'] = { body: { game: { id: 1 } } };           // wrong id
+        routes['https://liiga.fi/api/v2/games'] = { body: liveFeed() };
+        m.xhrFactory = mockRoutes(routes);
+        m.update();
+        compare(requests[requests.length - 1], 'https://liiga.fi/api/v2/games');
     }
 
     function test_liiga_http_error() {

@@ -165,6 +165,111 @@ ListModel {
         xhr.send();
     }
 
+    // ---- Live updates ------------------------------------------------
+    //
+    // While games are running, downloading the whole feed (~257 KB
+    // compressed) every minute is wasteful. update() instead fetches the
+    // per-game pages (https://liiga.fi/api/v2/games/{season}/{id}, which
+    // carry the same fields as a feed entry) of just the games that are
+    // live or about to start, and swaps them into the cached feed. It falls
+    // back to a full refresh() when there is nothing live, when the full
+    // feed is older than `fullRefreshMs`, or if any request fails.
+
+    // Full feed is re-downloaded at least this often (ms).
+    property int fullRefreshMs: 600000
+    // Games starting within this many ms count as "about to start", so the
+    // moment they begin is noticed.
+    property int startingSoonMs: 600000
+    // A game still not started this long after its scheduled start (e.g.
+    // postponed) is no longer polled.
+    property int notStartedGraceMs: 3600000
+
+    property bool updating: false
+
+    function _liveGames() {
+        var now = Date.now();
+        var live = [];
+        for (var i = 0; i < root.allGames.length; i++) {
+            var g = root.allGames[i];
+            if (g.started && !g.ended) {
+                live.push(g);
+            } else if (!g.started) {
+                var t = new Date(g.start).getTime();
+                if (t - now < root.startingSoonMs && now - t < root.notStartedGraceMs)
+                    live.push(g);
+            }
+        }
+        return live;
+    }
+
+    function _fetchGame(game, done) {
+        var xhr = root.xhrFactory();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4)
+                return;
+            var fresh = null;
+            if (xhr.status === 200) {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    fresh = data.game || data;
+                    if (!fresh || fresh.id !== game.id)
+                        fresh = null;
+                } catch (e) {
+                    fresh = null;
+                }
+            }
+            done(fresh);
+        };
+        xhr.open('GET', 'https://liiga.fi/api/v2/games/' + game.season + '/' + game.id);
+        xhr.send();
+    }
+
+    function update() {
+        if (root.updating)
+            return;
+
+        var live = root._liveGames();
+        if (live.length === 0 || Date.now() - root.lastFetch > root.fullRefreshMs) {
+            root.refresh();
+            return;
+        }
+
+        root.updating = true;
+        status = 1;
+        var waiting = live.length;
+        var fresh = [];
+        var failed = false;
+
+        function finished() {
+            root.updating = false;
+            if (failed) {
+                root.refresh();
+                return;
+            }
+            for (var i = 0; i < fresh.length; i++) {
+                for (var j = 0; j < root.allGames.length; j++) {
+                    if (root.allGames[j].id === fresh[i].id) {
+                        root.allGames[j] = fresh[i];
+                        break;
+                    }
+                }
+            }
+            root._applyFilter();
+            status = 3;
+        }
+
+        for (var k = 0; k < live.length; k++) {
+            root._fetchGame(live[k], function (game) {
+                if (game)
+                    fresh.push(game);
+                else
+                    failed = true;
+                if (--waiting === 0)
+                    finished();
+            });
+        }
+    }
+
     // When the data was last downloaded (ms since epoch).
     property double lastFetch: 0
     // Data older than this is downloaded again when the day changes.

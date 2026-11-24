@@ -192,7 +192,8 @@ Page {
              wakeUp: oledify.haveLock
 
              onTriggered: {
-                 games.model.refresh();
+                 // only the live games' pages, not the whole feed
+                 games.model.update();
              }
         }
 
